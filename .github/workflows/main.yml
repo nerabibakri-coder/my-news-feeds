@@ -1,24 +1,30 @@
 name: Update News Feeds
+
 on:
   schedule:
-    - cron: '*/15 * * * *' # تشغيل ذاتي في الخلفية كل 15 دقيقة للأبد
-  workflow_dispatch: # زر التشغيل اليدوي الفوري
+    - cron: '*/5 * * * *' # تشغيل كل 5 دقائق لملائمة سرعة التغطية الحية
+  workflow_dispatch:
+
 jobs:
   build:
     runs-on: ubuntu-latest
+
     steps:
-      - name: Checkout Code
-        uses: actions/checkout@v4
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-      - name: Run Scraper
-        run: node scraper.js
-      - name: Commit and Push RSS File
-        run: |
-          git config --global user.name "GitHub Action"
-          git config --global user.email "action@github.com"
-          git add kataeb.xml
-          git commit -m "Update RSS" || exit 0
-          git push
+    - name: Checkout Code
+      uses: actions/checkout@v4
+
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '24' # التحديث للإصدار الجديد المعتمد من غيت هاب
+
+    - name: Run Scraper
+      run: node scraper.js
+
+    - name: Commit and Push Update File
+      run: |
+        git config --global user.name "GitHub Action"
+        git config --global user.email "action@github.com"
+        git add live-news.json || true
+        git diff-index --quiet HEAD || git commit -m "تحديث مباشر لحظي ⚡" -a
+        git push
