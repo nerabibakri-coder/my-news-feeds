@@ -2,7 +2,7 @@ name: Update News Feeds
 
 on:
   schedule:
-    - cron: '*/5 * * * *'
+    - cron: '*/5 * * * *' # مزامنة آلية كل 5 دقائق
   workflow_dispatch:
 
 jobs:
@@ -17,10 +17,7 @@ jobs:
       with:
         node-version: '24'
 
-    - name: Install Puppeteer Dependencies
-      run: npm install puppeteer
-
-    - name: Run Scraper Browser
+    - name: Run Scraper
       run: node scraper.js
 
     - name: Push Updates
@@ -28,5 +25,5 @@ jobs:
         git config --global user.name "GitHub Action"
         git config --global user.email "action@github.com"
         git add kataeb-live.xml || true
-        git diff-index --quiet HEAD || git commit -m "تحديث شريط الأخبار اللحظي الحقيقي 🚨" -a
+        git diff-index --quiet HEAD || git commit -m "تحديث شريط عاجل المباشر ⚡" -a
         git push
