@@ -1,81 +1,65 @@
-const fs = require('fs');
-const https = require('https');
+import time
+import random
+from datetime import datetime
+import cloudscraper
+from bs4 import BeautifulSoup
+from feedgen.feed import FeedGenerator
 
-function updateKataebLiveFeed() {
-  // الرابط الخلفي السري البديل والفعال حالياً على الموقع
-  const apiUrl = "https://kataeb.org"; 
-  
-  const options = {
-    headers: {
-      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36',
-      'Accept': 'application/json',
-      'Cache-Control': 'no-cache'
-    }
-  };
+TARGET_URL = "https://kataeb.org"
+OUTPUT_FILE = "kataeb_feed.xml"
 
-  https.get(apiUrl, options, (res) => {
-    let rawData = '';
-    res.on('data', (chunk) => { rawData += chunk; });
+def fetch_kataeb_live():
+    print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] جاري تخطي حظر السيرفر وسحب الأخبار...")
     
-    res.on('end', () => {
-      try {
-        const timestamp = new Date().toUTCString();
-        let rssItems = '';
-
-        // تفكيك الكلمات العربية الصافية والعناوين مباشرة من ملف الـ JSON الجديد
-        const titleRegex = /"title":"([^"]+)"/g;
-        const excerptRegex = /"excerpt":"([^"]+)"/g;
-        const urlRegex = /"url":"([^"]+)"/g;
-
-        let titles = [], excerpts = [], urls = [], match;
-
-        while ((match = titleRegex.exec(rawData)) !== null) { titles.push(match); }
-        while ((match = excerptRegex.exec(rawData)) !== null) { excerpts.push(match); }
-        while ((match = urlRegex.exec(rawData)) !== null) { urls.push(match); }
-
-        let count = 0;
-        for (let i = 0; i < titles.length && count < 25; i++) {
-          // فك ترميز اليونيكود (Unicode) لضمان قراءة نصوص عربية سليمة ومفصولة مئة بالمئة داخل إينوريدر
-          let cleanTitle = titles[i].replace(/\\u([\dA-F]{4})/gi, (m, p) => String.fromCharCode(parseInt(p, 16))).replace(/\\/g, '');
-          let cleanExcerpt = excerpts[i] ? excerpts[i].replace(/\\u([\dA-F]{4})/gi, (m, p) => String.fromCharCode(parseInt(p, 16))).replace(/\\/g, '') : cleanTitle;
-          let slug = urls[i] ? urls[i].replace(/\\/g, '') : "";
-
-          if (cleanTitle.length > 10 && !cleanTitle.includes("logo") && !cleanTitle.includes("من نحن")) {
-            count++;
-            let newsLink = slug ? `https://kataeb.org{slug}` : `https://kataeb.org{i}`;
-            let guid = Buffer.from(cleanTitle.substring(0, 15)).toString('base64').replace(/[^a-zA-Z0-9]/g, '');
-
-            // ضخ الأخبار في عناصر مستقلة تماماً ليفصلها إينوريدر كمنشورات منفصلة ونظيفة
-            rssItems += `
-    <item>
-      <title><![CDATA[🚨 عاجل: ${cleanTitle}]]></title>
-      <description><![CDATA[${cleanExcerpt}]]></description>
-      <link>${newsLink}</link>
-      <guid isPermaLink="false">live-${guid}-${i}</guid>
-      <pubDate>${timestamp}</pubDate>
-    </item>`;
-          }
+    # استخدام محاكي مخصص لكسر حماية المواقع
+    scraper = cloudscraper.create_scraper(
+        browser={
+            'browser': 'chrome',
+            'platform': 'windows',
+            'desktop': True
         }
-
-        let rssFeed = `<?xml version="1.0" encoding="UTF-8" ?>\n<rss version="2.0">\n<channel>\n`;
-        rssFeed += `<title>مباشر - عاجل الكتائب اللبنانية</title>\n`;
-        rssFeed += `<link>https://kataeb.org</link>\n`;
-        rssFeed += `<description>تغطية حية للأخبار العاجلة والتطورات اللحظية دقيقة بدقيقة</description>\n`;
-        rssFeed += `<pubDate>${timestamp}</pubDate>\n`;
-        rssFeed += rssItems;
-        rssFeed += `\n</channel>\n</rss>`;
+    )
+    
+    try:
+        response = scraper.get(TARGET_URL, timeout=20)
+        if response.status_code != 200:
+            print(f"⚠️ فشل تخطي الحماية، كود الاستجابة: {response.status_code}")
+            return
+            
+        soup = BeautifulSoup(response.text, 'html.parser')
         
-        // الكتابة التلقائية المباشرة فوق ملفك الحالي المعتمد والمقروء في إينوريدر لإنهاء التعليق
-        fs.writeFileSync('kataeb.xml', rssFeed, 'utf-8');
-        console.log("تمت المزامنة وحقن العواجل بنجاح كامل!");
+        fg = FeedGenerator()
+        fg.title('موقع الكتائب - بث مباشر')
+        fg.link(href=TARGET_URL, rel='alternate')
+        fg.description('خلاصة RSS مخصصة لتحديثات موقع الكتائب اللبنانية المباشرة')
+        fg.language('ar')
+        
+        # جلب شريط الأخبار العاجلة بناءً على الهيكل النصي المباشر
+        news_items = soup.find_all('div', class_='live-box') or soup.find_all('li')
+        count = 0
+        
+        for item in news_items:
+            text_content = item.get_text(strip=True)
+            if len(text_content) > 15 and count < 15:
+                link_tag = item.find('a')
+                item_link = link_tag['href'] if link_tag and 'href' in link_tag.attrs else TARGET_URL
+                if not item_link.startswith('http'):
+                    item_link = "https://kataeb.org" + item_link
 
-      } catch (err) {
-        console.error("خطأ معالجة: " + err.message);
-      }
-    });
-  }).on('error', (err) => {
-    console.error("خطأ اتصال: " + err.message);
-  });
-}
+                fe = fg.add_entry()
+                fe.title(text_content)
+                fe.link(href=item_link)
+                fe.description(text_content)
+                count += 1
+                
+        if count > 0:
+            fg.rss_file(OUTPUT_FILE)
+            print(f"✓ تم بنجاح جلب {count} خبر وحفظ ملف RSS.")
+        else:
+            print("⚠️ تم الدخول للموقع ولكن الفئات تحتاج لمطابقة محددة.")
+            
+    except Exception as e:
+        print(f"❌ حدث خطأ غير متوقع: {e}")
 
-updateKataebLiveFeed();
+if __name__ == "__main__":
+    fetch_kataeb_live()
