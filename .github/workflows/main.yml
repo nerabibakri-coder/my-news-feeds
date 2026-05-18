@@ -2,11 +2,11 @@ name: Update Kataeb RSS Feed
 
 on:
   schedule:
-    - cron: '*/15 * * * *'
-  workflow_dispatch:
+    - cron: '*/15 * * * *' # تشغيل تلقائي دوري كل 15 دقيقة
+  workflow_dispatch: # تفعيل زر التشغيل اليدوي فوراً
 
 permissions:
-  contents: write
+  contents: write # منح السيرفر صلاحية حفظ وتحديث ملف kataeb.xml
 
 jobs:
   build:
@@ -14,10 +14,10 @@ jobs:
 
     steps:
     - name: Checkout repository code
-      uses: actions/checkout@v4 # تحديث لنسخة v4 المتوافقة مع Node الجديد
+      uses: actions/checkout@v4
 
     - name: Set up Python
-      uses: actions/setup-python@v5 # تحديث لنسخة v5 المتوافقة مع Node الجديد
+      uses: actions/setup-python@v5
       with:
         python-version: '3.11'
 
@@ -32,6 +32,6 @@ jobs:
       run: |
         git config --global user.name 'GitHub Actions Bot'
         git config --global user.email 'actions@github.com'
-        git add kataeb_feed.xml
+        git add kataeb.xml
         git commit -m "Auto-update RSS feed [skip ci]" || exit 0
         git push
