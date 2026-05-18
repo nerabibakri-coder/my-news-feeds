@@ -8,7 +8,7 @@ async function generateFeed() {
   try {
     const response = await fetch(url, {
       headers: {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
         'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
         'Accept-Language': 'ar,en;q=0.9'
       }
@@ -17,35 +17,34 @@ async function generateFeed() {
     
     let rss = '<?xml version="1.0" encoding="UTF-8" ?><rss version="2.0"><channel><title>مباشر - الكتائب اللبنانية</title><link>' + siteUrl + '</link><description>شريط النصوص والأخبار العاجلة المباشرة والمضمونة</description>';
     
+    // الحل السحري ضد التقلب: ريجكس ذكي يبحث عن الكلاس الذي يبدأ بـ ng-tns-c مهما تغيرت أرقامه اللاحقة
+    const parts = html.split(/class=["\'][^"\']*ng-tns-c[^"\']*["\']/i);
+    
     let usedTexts = {};
     let count = 0;
     
-    // ريجكس عبقري يلتقط كل النصوص العربية الإخبارية الطويلة الواقعة داخل أوسام العرض النصية للموقع مباشرة
-    const tickerRegex = />([^<]{22,120})<\/a>/g; 
-    let match;
-    
-    while ((match = tickerRegex.exec(html)) !== null && count < 25) {
-      let textSnippet = match[1].replace(/\s+/g, " ").trim();
-      
-      // تصفية المحتوى لضمان استخراج متن الأخبار العاجلة الحية فقط والابتعاد عن الكلمات العامة
-      if (textSnippet.length > 22 && 
-          !textSnippet.includes("{") && 
-          !textSnippet.includes("}") && 
-          !textSnippet.includes("اتصل") && 
-          !textSnippet.includes("شروط") && 
-          !textSnippet.includes("خصوصية") && 
-          !textSnippet.includes("حقوق") && 
-          !textSnippet.includes("الرئيسية") && 
-          !usedTexts[textSnippet]) {
+    for (let i = 1; i < parts.length && count < 25; i++) {
+      const closingIdx = parts[i].indexOf('</');
+      if (closingIdx !== -1) {
+        const elementHtml = parts[i].substring(0, closingIdx);
+        const textSnippet = elementHtml.replace(/<\/?[^>]+(>|$)/g, "").replace(/\s+/g, " ").trim();
         
-        usedTexts[textSnippet] = true;
-        count++;
-        
-        const title = textSnippet.substring(0, 70) + (textSnippet.length > 70 ? "..." : "");
-        const fakeLink = `${siteUrl}/#news-ticker-${count}-${timestamp}`;
-        const uniqueId = `kataeb-secure-text-${count}-${timestamp}`;
-        
-        rss += `<item><title><![CDATA[${title}]]></title><description><![CDATA[${textSnippet}]]></description><link>${fakeLink}</link><guid isPermaLink="false">${uniqueId}</guid></item>`;
+        // تصفية إضافية صارمة للتأكد من جلب نصوص الشريط الإخباري العاجل فقط وتجنب الروابط الجانبية
+        if (textSnippet.length > 15 && 
+            !textSnippet.includes("{") && 
+            !textSnippet.includes("اتصل") && 
+            !textSnippet.includes("حقوق") && 
+            !usedTexts[textSnippet]) {
+          
+          usedTexts[textSnippet] = true;
+          count++;
+          
+          const title = textSnippet.substring(0, 70) + (textSnippet.length > 70 ? "..." : "");
+          const fakeLink = `${siteUrl}/#news-ticker-${count}-${timestamp}`;
+          const uniqueId = `kataeb-github-ticker-${count}-${timestamp}`;
+          
+          rss += `<item><title><![CDATA[${title}]]></title><description><![CDATA[${textSnippet}]]></description><link>${fakeLink}</link><guid isPermaLink="false">${uniqueId}</guid></item>`;
+        }
       }
     }
     
@@ -55,7 +54,7 @@ async function generateFeed() {
     
     rss += '</channel></rss>';
     fs.writeFileSync('kataeb.xml', rss, 'utf-8');
-    console.log(`تم بنجاح قنص ${count} خبراً عاجلاً طازجاً!`);
+    console.log(`تم تأمين وجلب ${count} أخبار عاجلة بنظام كسر التقلب الأوتوماتيكي!`);
   } catch (e) {
     console.error("Error: " + e.toString());
   }
