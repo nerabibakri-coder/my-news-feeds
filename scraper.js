@@ -1,100 +1,88 @@
 const fs = require('fs');
 const https = require('https');
 
-function parseKataebLive() {
-  const liveUrl = "https://kataeb.org/live";
+function runGithubScraper() {
+  // جلب المحتوى المباشر الكامل من السيرفر بدون فلاتر معقدة تحذف التكرار
+  const apiUrl = "https://kataeb.org"; 
   
   const options = {
     headers: {
       'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
-      'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-      'Accept-Language': 'ar,en;q=0.5'
+      'Accept': 'text/html,application/xhtml+xml,application/xml'
     }
   };
 
-  https.get(liveUrl, options, (res) => {
-    let htmlContent = '';
-    res.on('data', (chunk) => { htmlContent += chunk; });
+  https.get(apiUrl, options, (res) => {
+    let rawJson = '';
+    res.on('data', (chunk) => { rawJson += chunk; });
     
     res.on('end', () => {
       try {
         const timestamp = new Date().toUTCString();
         let rssItems = '';
 
-        // تعبير نمطي برمي دقيق يبحث عن الكلاس المحدد ng-tns-c48-0 ويستخرج النصوص من داخله مباشرة
-        const classRegex = /class="[^"]*ng-tns-c48-0[^"]*"[^>]*>([\s\S]*?)<\/div>/g;
+        // كشط كافة العناوين والروابط بالتكرار الكامل لضمان المزامنة الفورية
+        const titleRegex = /"title":"([^"]+)"/g;
+        const excerptRegex = /"excerpt":"([^"]+)"/g;
+        const urlRegex = /"url":"([^"]+)"/g;
+
+        let titles = [];
+        let excerpts = [];
+        let urls = [];
         let match;
+
+        while ((match = titleRegex.exec(rawJson)) !== null) { titles.push(match[1]); }
+        while ((match = excerptRegex.exec(rawJson)) !== null) { excerpts.push(match[1]); }
+        while ((match = urlRegex.exec(rawJson)) !== null) { urls.push(match[1]); }
+
         let count = 0;
+        for (let i = 0; i < titles.length && count < 15; i++) {
+          // تحويل الرموز الموحدة لضمان خروج النصوص العربية صافية وواضحة لقارئ الأخبار
+          let cleanTitle = titles[i].replace(/\\u([\dA-F]{4})/gi, (m, p) => String.fromCharCode(parseInt(p, 16))).replace(/\\/g, '');
+          let cleanExcerpt = excerpts[i] ? excerpts[i].replace(/\\u([\dA-F]{4})/gi, (m, p) => String.fromCharCode(parseInt(p, 16))).replace(/\\/g, '') : cleanTitle;
+          let slug = urls[i] ? urls[i].replace(/\\/g, '') : "";
 
-        // ضخ كافة السطور التي تحمل اسم الكلاس بالتكرار الكامل دون حذف
-        while ((match = classRegex.exec(htmlContent)) !== null && count < 20) {
-          let blockText = match[1]
-            .replace(/<[^>]*>/g, '') // تنظيف وسوم HTML الداخلية فقط
-            .replace(/\s+/g, ' ')    // تنظيف المسافات العشوائية
-            .trim();
-
-          if (blockText.length > 10) {
+          if (cleanTitle.length > 15 && !cleanTitle.includes("logo") && !cleanTitle.includes("من نحن")) {
             count++;
-            let guidId = Buffer.from(blockText.substring(0, 30)).toString('base64').replace(/[^a-zA-Z0-9]/g, '');
-            
+            // صياغة الرابط الصحيح لفتح الخبر اللحظي بدقة
+            let newsLink = slug ? `https://kataeb.org{slug}` : "https://kataeb.org";
+            let guid = Buffer.from(cleanTitle.substring(0, 20)).toString('base64').replace(/[^a-zA-Z0-9]/g, '');
+
             rssItems += `
     <item>
-      <title><![CDATA[⚡ مباشر: ${blockText.substring(0, 90)}...]]></title>
-      <description><![CDATA[${blockText}]]></description>
-      <link>${liveUrl}#${guidId}</link>
-      <guid isPermaLink="false">item-${guidId}</guid>
+      <title><![CDATA[🚨 عاجل: ${cleanTitle}]]></title>
+      <description><![CDATA[${cleanExcerpt}]]></description>
+      <link>${newsLink}</link>
+      <guid isPermaLink="false">news-${guid}-${i}</guid>
       <pubDate>${timestamp}</pubDate>
     </item>`;
           }
         }
 
-        // في حال لم تكتمل قراءة الـ DOM الثابت بسبب حماية الموقع، نستخدم التجميع اللفظي المباشر كخط دفاع احتياطي للمحتوى الحقيقي
-        if (rssItems === '' && (htmlContent.includes('وزارة الصحة') || htmlContent.includes('قصف') || htmlContent.includes('عاجل'))) {
-          const timeMatches = htmlContent.match(/\d{2}:\d{2}/g);
-          if (timeMatches) {
-            let parts = htmlContent.split(/\d{2}:\d{2}/);
-            for (let i = 0; i < timeMatches.length && i < 15; i++) {
-              let cleanNews = parts[i + 1].replace(/<[^>]*>/g, '').replace(/\s+/g, ' ').trim();
-              if (cleanNews.length > 15) {
-                let fallbackGuid = Buffer.from(timeMatches[i] + cleanNews.substring(0,10)).toString('base64').replace(/[^a-zA-Z0-9]/g, '');
-                rssItems += `
-    <item>
-      <title><![CDATA[[${timeMatches[i]}] ${cleanNews.substring(0, 80)}...]]></title>
-      <description><![CDATA[${cleanNews}]]></description>
-      <link>${liveUrl}</link>
-      <guid isPermaLink="false">fb-${fallbackGuid}</guid>
-      <pubDate>${timestamp}</pubDate>
-    </item>`;
-              }
-            }
-          }
-        }
-
-        // صياغة ملف الـ XML النهائي الموجه لتطبيق Inoreader
         let rssFeed = `<?xml version="1.0" encoding="UTF-8" ?>\n<rss version="2.0">\n<channel>\n`;
-        rssFeed += `<title>عاجل الكتائب - مباشر</title>\n`;
-        rssFeed += `<link>${liveUrl}</link>\n`;
-        rssFeed += `<description>تغطية حية مأخوذة من الكلاس البرمجي مباشرة</description>\n`;
+        rssFeed += `<title>مباشر - عاجل الكتائب اللبنانية</title>\n`;
+        rssFeed += `<link>https://kataeb.org</link>\n`;
+        rssFeed += `<description>تغطية حية للأخبار العاجلة والتطورات اللحظية الجارية</description>\n`;
         rssFeed += `<pubDate>${timestamp}</pubDate>\n`;
         
-        if (rssItems !== '') {
+        if (rssItems !== "") {
           rssFeed += rssItems;
         } else {
-          // لمنع تجمد أو تفريغ التغذية داخل التطبيق تحت أي ظرف أمني للموقع
           rssFeed += `
     <item>
-      <title><![CDATA[⏱️ جاري تحديث نبض التغطية الميدانية والسياسية اللحظية]]></title>
-      <description><![CDATA[يرجى التحديث لمتابعة مستجدات شريط مباشر الكتائب اللبنانية.]]></description>
-      <link>${liveUrl}</link>\n
-      <guid>refresh-${new Date().getTime()}</guid>\n
+      <title><![CDATA[⚡ متابعة مستمرة لآخر التطورات والأخبار الميدانية اللحظية]]></title>
+      <description><![CDATA[يرجى تحديث الخلاصة بعد لحظات لمزامنة التحديثات الحية الجارية الآن.]]></description>
+      <link>https://kataeb.org</link>\n
+      <guid>sync-${new Date().getTime()}</guid>\n
       <pubDate>${timestamp}</pubDate>\n
     </item>`;
         }
-
+        
         rssFeed += `\n</channel>\n</rss>`;
         
+        // حفظ ملف الـ RSS النهائي لـ Inoreader في المستودع
         fs.writeFileSync('kataeb-live.xml', rssFeed, 'utf-8');
-        console.log("تم سحب الكلاس وتوليد الـ RSS بنجاح كامل!");
+        console.log("تم تحديث وبناء ملف الـ RSS بنجاح مالي كامل على غيت هاب!");
 
       } catch (err) {
         console.error("خطأ معالجة: " + err.message);
@@ -105,4 +93,4 @@ function parseKataebLive() {
   });
 }
 
-parseKataebLive();
+runGithubScraper();
