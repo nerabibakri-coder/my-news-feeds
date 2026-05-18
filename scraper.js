@@ -1,29 +1,31 @@
-name: Sync Kataeb Live
+const fs = require('fs');
+const https = require('https');
 
-on:
-  schedule:
-    - cron: '*/5 * * * *' # غيت هاب يسمح برأس كل 5 دقائق كحد أقصى مجاني ومستقر
-  workflow_dispatch: # لتشغيله يدوياً بضغطة زر في أي ثانية
+function fetchLivePage() {
+  const liveUrl = "https://kataeb.org";
+  
+  const options = {
+    headers: {
+      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+    }
+  };
 
-jobs:
-  scrape:
-    runs-on: ubuntu-latest
-    steps:
-    - name: Checkout repository
-      uses: actions/checkout@v4
+  https.get(liveUrl, options, (res) => {
+    let data = '';
 
-    - name: Setup Node.js
-      uses: actions/setup-node@v4
-      with:
-        node-version: '20'
+    res.on('data', (chunk) => {
+      data += chunk;
+    });
 
-    - name: Fetch Live Data
-      run: node index.js
+    res.on('end', () => {
+      // حفظ البيانات في الملف الذي تنتظره واجهة الـ HTML
+      fs.writeFileSync('live-news.json', JSON.stringify({ updated: new Date().getTime(), html: data }), 'utf-8');
+      console.log("تم تحديث نبض التغطية الحية بنجاح!");
+    });
 
-    - name: Push Updates
-      run: |
-        git config --global user.name "Live Bot"
-        git config --global user.email "bot@live.com"
-        git add live-news.json
-        git diff-index --quiet HEAD || git commit -m "نبض مباشر جديد ⚡" -a
-        git push
+  }).on("error", (err) => {
+    console.error("فشل الاتصال: " + err.message);
+  });
+}
+
+fetchLivePage();
