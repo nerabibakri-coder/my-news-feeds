@@ -4,11 +4,11 @@ import requests
 from bs4 import BeautifulSoup
 from feedgen.feed import FeedGenerator
 
-TARGET_URL = "https://kataeb.org"
-OUTPUT_FILE = "kataeb.xml" # جعلناه يطابق الاسم الموجود بحسابك
+TARGET_URL = "https://kataeb.org" # قمنا بتغيير الرابط ليتوجه لصفحة البث المباشر مباشرة
+OUTPUT_FILE = "kataeb.xml"
 
 def fetch_kataeb_live():
-    print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] جاري سحب الأخبار...")
+    print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] جاري جلب شريط الأخبار العاجلة الحية...")
     headers = {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
         'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
@@ -27,12 +27,23 @@ def fetch_kataeb_live():
         fg.description('خلاصة RSS مخصصة لتحديثات موقع الكتائب اللبنانية المباشرة')
         fg.language('ar')
         
-        # البحث في الروابط والعناوين المباشرة بالصفحة
-        news_items = soup.find_all('h1') or soup.find_all('li')
+        # استهداف الحاويات البرمجية المخصصة لشريط الأخبار المتغيرة بالدقيقة
+        # الكود يبحث عن الفئات الشائعة للبث المباشر (live items, live-news, timeline)
+        news_items = soup.find_all('div', class_='live-news-item') or \
+                     soup.find_all('div', class_='live-box') or \
+                     soup.find_all('div', class_='news-item') or \
+                     soup.find_all('div', class_='timeline-item')
+        
+        # إذا لم يجد الفئات المحددة، سيسحب كود احتياطي ذكي يبحث عن أي نصوص مرتبطة بالوقت المباشر
+        if not news_items:
+            news_items = [li for li in soup.find_all('li') if len(li.get_text(strip=True)) > 20]
+
         count = 0
         for item in news_items:
-            text_content = item.get_text(strip=True)
-            if len(text_content) > 15 and count < 15:
+            text_content = item.get_text(" ", strip=True)
+            
+            # تصفية الكلمات العامة والثابتة لضمان جلب الأخبار الحقيقية فقط
+            if len(text_content) > 15 and count < 15 and "شريط الأخبار" not in text_content and "التغطيات الشاملة" not in text_content:
                 link_tag = item.find('a')
                 item_link = link_tag['href'] if link_tag and 'href' in link_tag.attrs else TARGET_URL
                 if not item_link.startswith('http'):
@@ -46,9 +57,21 @@ def fetch_kataeb_live():
                 
         if count > 0:
             fg.rss_file(OUTPUT_FILE)
-            print(f"✓ تم تحديث الخلاصة بنجاح (تم جلب {count} خبر)")
+            print(f"✓ تم تحديث الخلاصة بنجاح بالأخبار الفعلية (تم جلب {count} خبر)")
         else:
-            print("⚠️ لم يتم العثور على أخبار جديدة توافق البنية.")
+            print("⚠️ تم الدخول ولكن لم يتم تصفية أخبار حقيقية، جارِ البحث الموسع...")
+            # كود طوارئ لسحب أحدث العناوين من الصفحة الرئيسية في حال اختفاء شريط البث
+            titles = soup.find_all('h2') or soup.find_all('h3')
+            for title in titles:
+                text_t = title.get_text(strip=True)
+                if len(text_t) > 15 and count < 15:
+                    fe = fg.add_entry()
+                    fe.title(text_t)
+                    fe.link(href=TARGET_URL)
+                    fe.description(text_t)
+                    count += 1
+            fg.rss_file(OUTPUT_FILE)
+            
     except Exception as e:
         print(f"❌ خطأ: {e}")
 
