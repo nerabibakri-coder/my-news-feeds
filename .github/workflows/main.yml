@@ -2,7 +2,7 @@ name: Update News Feeds
 
 on:
   schedule:
-    - cron: '*/5 * * * *' # مزامنة آلية كل 5 دقائق
+    - cron: '*/5 * * * *' # إيقاظ السيرفر كل 5 دقائق لسحب العواجل الحية
   workflow_dispatch:
 
 jobs:
@@ -24,6 +24,6 @@ jobs:
       run: |
         git config --global user.name "GitHub Action"
         git config --global user.email "action@github.com"
-        git add kataeb-live.xml || true
-        git diff-index --quiet HEAD || git commit -m "تحديث شريط عاجل المباشر ⚡" -a
+        git add kataeb.xml || true
+        git diff-index --quiet HEAD || git commit -m "نبض وعواجل مباشرة جديدة ⚡" -a
         git push
