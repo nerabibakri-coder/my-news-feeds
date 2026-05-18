@@ -4,11 +4,11 @@ import requests
 from bs4 import BeautifulSoup
 from feedgen.feed import FeedGenerator
 
-TARGET_URL = "https://kataeb.org" # قمنا بتغيير الرابط ليتوجه لصفحة البث المباشر مباشرة
+TARGET_URL = "https://kataeb.org"
 OUTPUT_FILE = "kataeb.xml"
 
 def fetch_kataeb_live():
-    print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] جاري جلب شريط الأخبار العاجلة الحية...")
+    print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] جاري سحب الأخبار العاجلة باستخدام الفئات الذكية...")
     headers = {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
         'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
@@ -27,50 +27,40 @@ def fetch_kataeb_live():
         fg.description('خلاصة RSS مخصصة لتحديثات موقع الكتائب اللبنانية المباشرة')
         fg.language('ar')
         
-        # استهداف الحاويات البرمجية المخصصة لشريط الأخبار المتغيرة بالدقيقة
-        # الكود يبحث عن الفئات الشائعة للبث المباشر (live items, live-news, timeline)
-        news_items = soup.find_all('div', class_='live-news-item') or \
-                     soup.find_all('div', class_='live-box') or \
-                     soup.find_all('div', class_='news-item') or \
-                     soup.find_all('div', class_='timeline-item')
+        # البحث الذكي عن أي وسم span يحتوي كلاس يبدأ بـ ng-tns- لتغطية كل الأخبار العاجلة
+        news_items = soup.find_all('span', class_=lambda x: x and 'ng-tns-' in x)
         
-        # إذا لم يجد الفئات المحددة، سيسحب كود احتياطي ذكي يبحث عن أي نصوص مرتبطة بالوقت المباشر
+        # إذا لم يجدها (في حال اختلاف الاستجابة السحابية)، سيبحث في فئات حاوية الأخبار العاجلة العامة
         if not news_items:
-            news_items = [li for li in soup.find_all('li') if len(li.get_text(strip=True)) > 20]
+            news_items = soup.find_all('span', attrs={"_ngcontent-kataeb-c48": True})
 
         count = 0
-        for item in news_items:
-            text_content = item.get_text(" ", strip=True)
-            
-            # تصفية الكلمات العامة والثابتة لضمان جلب الأخبار الحقيقية فقط
-            if len(text_content) > 15 and count < 15 and "شريط الأخبار" not in text_content and "التغطيات الشاملة" not in text_content:
-                link_tag = item.find('a')
-                item_link = link_tag['href'] if link_tag and 'href' in link_tag.attrs else TARGET_URL
-                if not item_link.startswith('http'):
-                    item_link = "https://kataeb.org" + item_link
+        seen_texts = set() # لمنع تكرار نفس الخبر في الخلاصة
 
+        for item in news_items:
+            text_content = item.get_text(strip=True)
+            
+            # تصفية النصوص الثابتة، والتأكد من طول الخبر، ومنع التكرار
+            if len(text_content) > 15 and text_content not in seen_texts:
+                if "شريط الأخبار" in text_content or "التغطيات الشاملة" in text_content or "متابعة" in text_content:
+                    continue
+                    
+                seen_texts.add(text_content)
+                
                 fe = fg.add_entry()
                 fe.title(text_content)
-                fe.link(href=item_link)
+                fe.link(href=TARGET_URL)
                 fe.description(text_content)
                 count += 1
                 
+            if count >= 20: # جلب آخر 20 خبر عاجل
+                break
+                
         if count > 0:
             fg.rss_file(OUTPUT_FILE)
-            print(f"✓ تم تحديث الخلاصة بنجاح بالأخبار الفعلية (تم جلب {count} خبر)")
+            print(f"✓ نجاح كامل! تم تحديث الـ RSS وجلب {count} خبر عاجل حقيقي.")
         else:
-            print("⚠️ تم الدخول ولكن لم يتم تصفية أخبار حقيقية، جارِ البحث الموسع...")
-            # كود طوارئ لسحب أحدث العناوين من الصفحة الرئيسية في حال اختفاء شريط البث
-            titles = soup.find_all('h2') or soup.find_all('h3')
-            for title in titles:
-                text_t = title.get_text(strip=True)
-                if len(text_t) > 15 and count < 15:
-                    fe = fg.add_entry()
-                    fe.title(text_t)
-                    fe.link(href=TARGET_URL)
-                    fe.description(text_t)
-                    count += 1
-            fg.rss_file(OUTPUT_FILE)
+            print("⚠️ تم قراءة الصفحة ولكن لم يظهر محتوى الأخبار في كود السيرفر المباشر.")
             
     except Exception as e:
         print(f"❌ خطأ: {e}")
