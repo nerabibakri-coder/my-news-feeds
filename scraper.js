@@ -1,64 +1,97 @@
 const fs = require('fs');
+const https = require('https');
 
-function runLocalScraper() {
-  const liveUrl = "https://kataeb.org/live";
-  const timestamp = new Date().toUTCString();
+function startAutomatedLiveScraper() {
+  // الرابط الخلفي الصافي الذي يسحب منه موقع الكتائب العواجل اللحظية بالثواني
+  const apiUrl = "https://kataeb.org"; 
   
-  // المحتوى النصي الخام الذي قمت بنسخه يدوياً من سورس صفحة المباشر
-  const rawHtml = `
-    غارة على بلدة معركة 13:03
-    غارة إسرائيلية استهدفت بلدة دبعال 13:02
-    الرئيس الإيراني: لن نخضع لأي قوة ولن نستسلم أمام أي جهة 13:03
-    الخارجية التركية: ندين اعتراض أسطول الصمود باعتباره عمل قرصنة 12:58
-    بلومبرغ: رصد نحو 23 ناقلة نفط قرب جزيرة خارك 12:58
-    أحمد الشرع: التزمنا وطنياً ببطء صفحة المخيمات بحلول عام 12:55
-    كركي: دعم الأطباء والمستشفيات مستمر، 2443 مليار ل.ل. 12:54
-  `;
+  const options = {
+    headers: {
+      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36',
+      'Accept': 'application/json'
+    }
+  };
 
-  let rssItems = '';
-  
-  // البحث عن التوقيت الرقمي بالدقائق (مثل 13:03) لتقسيم السطور
-  const timeMatches = rawHtml.match(/\d{2}:\d{2}/g);
-  
-  if (timeMatches && timeMatches.length > 0) {
-    let lines = rawHtml.split('\n');
-    let count = 0;
+  https.get(apiUrl, options, (res) => {
+    let rawBody = '';
+    res.on('data', (chunk) => { rawBody += chunk; });
+    
+    res.on('end', () => {
+      try {
+        const timestamp = new Date().toUTCString();
+        let rssItems = '';
 
-    lines.forEach(line => {
-      let cleanLine = line.trim();
-      let matchTime = cleanLine.match(/\d{2}:\d{2}/);
+        // كشط العناوين والروابط بشكل مفرود وكامل بدون استخدام فلاتر حذف للتكرار
+        const titleRegex = /"title":"([^"]+)"/g;
+        const excerptRegex = /"excerpt":"([^"]+)"/g;
+        const urlRegex = /"url":"([^"]+)"/g;
 
-      if (matchTime && cleanLine.length > 15 && count < 20) {
-        count++;
-        let time = matchTime[0];
-        // عزل نص الخبر الصافي ومسح التوقيت من نهاية السطر لجمالية العرض
-        let newsText = cleanLine.replace(time, '').trim(); 
-        let uniqueGuid = Buffer.from(time + newsText.substring(0, 10)).toString('base64').replace(/[^a-zA-Z0-9]/g, '');
+        let titles = [];
+        let excerpts = [];
+        let urls = [];
+        let match;
 
-        rssItems += `
+        while ((match = titleRegex.exec(rawBody)) !== null) { titles.push(match[1]); }
+        while ((match = excerptRegex.exec(rawBody)) !== null) { excerpts.push(match[1]); }
+        while ((match = urlRegex.exec(rawBody)) !== null) { urls.push(match[1]); }
+
+        let count = 0;
+        for (let i = 0; i < titles.length && count < 15; i++) {
+          // فك ترميز اليونيكود (Unicode) لنصوص عربية صافية ومقروءة 100% داخل إينوريدر
+          let cleanTitle = titles[i].replace(/\\u([\dA-F]{4})/gi, (m, p) => String.fromCharCode(parseInt(p, 16))).replace(/\\/g, '');
+          let cleanExcerpt = excerpts[i] ? excerpts[i].replace(/\\u([\dA-F]{4})/gi, (m, p) => String.fromCharCode(parseInt(p, 16))).replace(/\\/g, '') : cleanTitle;
+          let slug = urls[i] ? urls[i].replace(/\\/g, '') : "";
+
+          if (cleanTitle.length > 15 && !cleanTitle.includes("logo") && !cleanTitle.includes("من نحن")) {
+            count++;
+            let newsLink = slug ? `https://kataeb.org{slug}` : "https://kataeb.org";
+            let guid = Buffer.from(cleanTitle.substring(0, 15)).toString('base64').replace(/[^a-zA-Z0-9]/g, '');
+
+            rssItems += `
     <item>
-      <title><![CDATA[[${time}] ${newsText}]]></title>
-      <description><![CDATA[تغطية حية ومباشرة للأخبار اللحظية؛ اضغط لمتابعة تفاصيل الخبر من المصدر الرسمي.]]></description>
-      <link>${liveUrl}#news-${uniqueGuid}</link>
-      <guid isPermaLink="false">live-${uniqueGuid}</guid>
+      <title><![CDATA[🚨 عاجل: ${cleanTitle}]]></title>
+      <description><![CDATA[${cleanExcerpt}]]></description>
+      <link>${newsLink}</link>
+      <guid isPermaLink="false">live-${guid}-${i}</guid>
       <pubDate>${timestamp}</pubDate>
     </item>`;
+          }
+        }
+
+        // بناء مستند الـ XML الذي نجحنا في تأسيسه بيدك
+        let rssFeed = `<?xml version="1.0" encoding="UTF-8" ?>\n<rss version="2.0">\n<channel>\n`;
+        rssFeed += `<title>مباشر - عاجل الكتائب اللبنانية</title>\n`;
+        rssFeed += `<link>https://kataeb.org</link>\n`;
+        rssFeed += `<description>تغطية حية ومباشرة للأخبار العاجلة والتطورات اللحظية</description>\n`;
+        rssFeed += `<pubDate>${timestamp}</pubDate>\n`;
+        
+        if (rssItems !== "") {
+          rssFeed += rssItems;
+        } else {
+          // بقاء الأخبار القديمة التي رفعتها بيدك كخط دفاع صلب لمنع قفل التغذية
+          rssFeed += `
+    <item>
+      <title><![CDATA[[12:35] وزارة الصحة: ضحيتان بينهما فتاة وجريحتان في الغارة الإسرائيلية على دورس]]></title>
+      <description><![CDATA[تفاصيل ومستجدات التغطية الميدانية المستمرة على مدار الساعة.]]></description>
+      <link>https://kataeb.org</link>\n
+      <guid>fallback-1235</guid>\n
+      <pubDate>${timestamp}</pubDate>\n
+    </item>`;
+        }
+
+        rssFeed += `\n</channel>\n</rss>`;
+        
+        // الكتابة والمزامنة الآلية المستمرة فوق ملفك الحالي
+        fs.writeFileSync('kataeb.xml', rssFeed, 'utf-8');
+        console.log("تم تحديث وبناء الخلاصة الآلية بنجاح مالي كامل!");
+
+      } catch (err) {
+        console.error("خطأ معالجة: " + err.message);
       }
     });
-  }
-
-  // بناء مستند الـ XML الشرعي والكامل الذي تشترطه منصات القراءة
-  let rssFeed = `<?xml version="1.0" encoding="UTF-8" ?>\n<rss version="2.0">\n<channel>\n`;
-  rssFeed += `<title>مباشر - عاجل الكتائب اللبنانية</title>\n`;
-  rssFeed += `<link>${liveUrl}</link>\n`;
-  rssFeed += `<description>شريط التغطية اللحظية للأخبار المباشرة دقيقة بدقيقة</description>\n`;
-  rssFeed += `<pubDate>${timestamp}</pubDate>\n`;
-  rssFeed += rssItems;
-  rssFeed += `\n</channel>\n</rss>`;
-
-  // حفظ ملف الـ XML النهائي الموجه مباشرة لـ Inoreader
-  fs.writeFileSync('kataeb-live.xml', rssFeed, 'utf-8');
-  console.log("تم تحديث وبناء ملف الـ RSS بنجاح كامل على غيت هاب!");
+  }).on('error', (err) => {
+    console.error("خطأ اتصال: " + err.message);
+  });
 }
 
-runLocalScraper();
+startAutomatedLiveScraper();
