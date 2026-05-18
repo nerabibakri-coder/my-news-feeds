@@ -1,7 +1,6 @@
 import time
-import random
 from datetime import datetime
-import cloudscraper
+import requests
 from bs4 import BeautifulSoup
 from feedgen.feed import FeedGenerator
 
@@ -9,32 +8,36 @@ TARGET_URL = "https://kataeb.org"
 OUTPUT_FILE = "kataeb_feed.xml"
 
 def fetch_kataeb_live():
-    print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] جاري تخطي حظر السيرفر وسحب الأخبار...")
+    print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] جاري سحب الأخبار وتفادي الحظر البرمجي...")
     
-    # استخدام محاكي مخصص لكسر حماية المواقع
-    scraper = cloudscraper.create_scraper(
-        browser={
-            'browser': 'chrome',
-            'platform': 'windows',
-            'desktop': True
-        }
-    )
+    # استخدام هيدرز متكامل يطابق متصفح حقيقي 100% لخداع جدار حماية الموقع
+    headers = {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8',
+        'Accept-Language': 'ar,en-US;q=0.9,en;q=0.8',
+        'Accept-Encoding': 'gzip, deflate, br',
+        'Cache-Control': 'max-age=0',
+        'Connection': 'keep-alive'
+    }
     
     try:
-        response = scraper.get(TARGET_URL, timeout=20)
+        # إرسال طلب جلب الصفحة مع الهيدرز الجديد
+        response = requests.get(TARGET_URL, headers=headers, timeout=20)
+        
         if response.status_code != 200:
-            print(f"⚠️ فشل تخطي الحماية، كود الاستجابة: {response.status_code}")
+            print(f"⚠️ الموقع رفض الطلب، كود الاستجابة: {response.status_code}")
             return
             
         soup = BeautifulSoup(response.text, 'html.parser')
         
+        # إنشاء ملف الـ RSS
         fg = FeedGenerator()
         fg.title('موقع الكتائب - بث مباشر')
         fg.link(href=TARGET_URL, rel='alternate')
         fg.description('خلاصة RSS مخصصة لتحديثات موقع الكتائب اللبنانية المباشرة')
         fg.language('ar')
         
-        # جلب شريط الأخبار العاجلة بناءً على الهيكل النصي المباشر
+        # استخراج الأخبار من الهيكل المباشر للصفحة
         news_items = soup.find_all('div', class_='live-box') or soup.find_all('li')
         count = 0
         
@@ -54,7 +57,7 @@ def fetch_kataeb_live():
                 
         if count > 0:
             fg.rss_file(OUTPUT_FILE)
-            print(f"✓ تم بنجاح جلب {count} خبر وحفظ ملف RSS.")
+            print(f"✓ نجاح! تم توليد الـ RSS وحفظ الملف بنجاح.")
         else:
             print("⚠️ تم الدخول للموقع ولكن الفئات تحتاج لمطابقة محددة.")
             
