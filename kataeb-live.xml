@@ -3,13 +3,18 @@
 <channel>
 <title>مباشر - عاجل الكتائب اللبنانية</title>
 <link>https://kataeb.org</link>
-<description>خلاصة فورية مخصصة لقارئ الأخبار بالدقائق والثواني</description>
-<pubDate>Mon, 18 May 2026 09:29:05 GMT</pubDate>
-<item>
-<title><![CDATA[⚡ تغطية حية متواصلة: آخر المستجدات الميدانية والسياسية اللحظية]]></title>
-<description><![CDATA[اضغط على الرابط لمتابعة تحديثات شريط المباشر دقيقة بدقيقة.]]></description>
-<link>https://kataeb.org</link>
-<guid>live-1779096545112</guid>
-</item>
+<description>تغطية حية للأخبار العاجلة والتطورات اللحظية</description>
+<pubDate>Mon, 18 May 2026 09:35:04 GMT</pubDate>
+
+    <item>
+      <title><![CDATA[⚡ متابعة مستمرة للتطورات الميدانية والسياسية اللحظية الجارية]]></title>
+      <description><![CDATA[اضغط على تفاصيل المصدر لمتابعة البث الحي المباشر دقيقة بدقيقة.]]></description>
+      <link>https://kataeb.org</link>
+
+      <guid>fallback-1779096904876</guid>
+
+      <pubDate>Mon, 18 May 2026 09:35:04 GMT</pubDate>
+
+    </item>
 </channel>
 </rss>
