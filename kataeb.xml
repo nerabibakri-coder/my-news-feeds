@@ -1,1 +1,30 @@
-<?xml version="1.0" encoding="UTF-8" ?><rss version="2.0"><channel><title>مباشر - ... الكتائب اللبنانية</title><link>https://kataeb.org</link><description>خلاصة إخبارية شاملة</description><item><title><![CDATA[متابعة آخر الأخبار والتغطيات الشاملة عبر موقع الكتائب]]></title><description><![CDATA[تغطية شاملة لكل ما ينشر على مدار الساعة.]]></description><link>https://kataeb.org</link><guid>fallback-1779083914226</guid></item></channel></rss>
+<?xml version="1.0" encoding="UTF-8" ?>
+<rss version="2.0">
+<channel>
+  <title>مباشر - عاجل الكتائب اللبنانية</title>
+  <link>https://kataeb.org/live</link>
+  <description>تغطية حية للأخبار العاجلة والتطورات اللحظية</description>
+  <pubDate>Mon, 18 May 2026 12:35:00 GMT</pubDate>
+
+  <item>
+    <title><![CDATA[[12:35] وزارة الصحة: ضحيتان بينهما فتاة وجريحتان في الغارة الإسرائيلية على دورس وجميعهم فلسطينيون]]></title>
+    <description><![CDATA[تفاصيل ومستجدات التغطية الميدانية المستمرة على مدار الساعة.]]></description>
+    <link>https://kataeb.org</link>
+    <guid isPermaLink="false">news-1235</guid>
+  </item>
+
+  <item>
+    <title><![CDATA[[12:34] الكرملين: كلام زيلينسكي عن نية روسيا شن هجوم على دولة عضو في الناتو لا تستحق التعليق]]></title>
+    <description><![CDATA[مستجدات الملفات السياسية والدولية الساخنة من غرفة التغطية اللحظية.]]></description>
+    <link>https://kataeb.org</link>
+    <guid isPermaLink="false">news-1234</guid>
+  </item>
+
+  <item>
+    <title><![CDATA[[12:29] "الوكالة الوطنيّة": قصف مدفعيّ إسرائيليّ على بلدة ديرعامص في قضاء صور]]></title>
+    <description><![CDATA[رصد أمني وعسكري فوري للتطورات الميدانية الجارية في جنوب لبنان دقيقة بدقيقة.]]></description>
+    <link>https://kataeb.org</link>
+    <guid isPermaLink="false">news-1229</guid>
+  </item>
+</channel>
+</rss>
