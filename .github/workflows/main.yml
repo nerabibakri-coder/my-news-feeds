@@ -2,7 +2,7 @@ name: Update News Feeds
 
 on:
   schedule:
-    - cron: '*/5 * * * *'
+    - cron: '*/5 * * * *' # تشغيل السحب تلقائياً كل 5 دقائق لملاحقة العواجل
   workflow_dispatch:
 
 jobs:
@@ -20,10 +20,10 @@ jobs:
     - name: Run Scraper
       run: node scraper.js
 
-    - name: Commit and Push Update Files
+    - name: Push Updates
       run: |
         git config --global user.name "GitHub Action"
         git config --global user.email "action@github.com"
-        git add live-news.json kataeb-live.xml || true
-        git diff-index --quiet HEAD || git commit -m "نبض وعواجل مباشرة جديدة ⚡" -a
+        git add kataeb-live.xml || true
+        git diff-index --quiet HEAD || git commit -m "تحديث شريط الأخبار اللحظي 🚨" -a
         git push
