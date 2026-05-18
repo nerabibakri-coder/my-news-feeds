@@ -15,14 +15,13 @@ async function generateFeed() {
     });
     const xmlText = await response.text();
     
-    // إذا عاد خادم الموقع بالتغذية البرمجية السليمة، نقوم بحفظها وتمريرها فوراً
-    if (xmlText && (xmlContent.includes("<rss") || xmlContent.includes("<channel>"))) {
+    // تصحيح الخطأ: التحقق من المتغير السليم xmlText لضمان قراءة الخلاصة الشاملة
+    if (xmlText && (xmlText.includes("<rss") || xmlText.includes("<channel>"))) {
       fs.writeFileSync('kataeb.xml', xmlText, 'utf-8');
       console.log("تم جلب وتحديث كل أخبار ومقالات الموقع بنجاح!");
       return;
     }
     
-    // خط دفاع بديل ذكي وجاهز في حال واجه خادم الموقع أي ضغط مؤقت
     rssFallback(siteUrl, timestamp);
     
   } catch (e) {
@@ -31,7 +30,7 @@ async function generateFeed() {
 }
 
 function rssFallback(siteUrl, timestamp) {
-  let rss = '<?xml version="1.0" encoding="UTF-8" ?><rss version="2.0"><channel><title>مباشر - الكتائب اللبنانية</title><link>' + siteUrl + '</link><description>خلاصة إخبارية شاملة</description>';
+  let rss = '<?xml version="1.0" encoding="UTF-8" ?><rss version="2.0"><channel><title>مباشر - ... الكتائب اللبنانية</title><link>' + siteUrl + '</link><description>خلاصة إخبارية شاملة</description>';
   rss += `<item><title><![CDATA[متابعة آخر الأخبار والتغطيات الشاملة عبر موقع الكتائب]]></title><description><![CDATA[تغطية شاملة لكل ما ينشر على مدار الساعة.]]></description><link>${siteUrl}</link><guid>fallback-${timestamp}</guid></item>`;
   rss += '</channel></rss>';
   fs.writeFileSync('kataeb.xml', rss, 'utf-8');
