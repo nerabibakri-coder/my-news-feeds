@@ -2,6 +2,7 @@ const fs = require('fs');
 const https = require('https');
 
 function runGithubScraper() {
+  // جلب المحتوى المباشر المحدث بالكامل من السيرفر مباشرة
   const apiUrl = "https://kataeb.org"; 
   
   const options = {
@@ -20,7 +21,7 @@ function runGithubScraper() {
         const timestamp = new Date().toUTCString();
         let rssItems = '';
 
-        // كشط كافة العناوين والروابط بالتكرار الكامل لضمان المزامنة الفورية
+        // تعبيرات نمطية دقيقة لكشط النصوص والعناوين والروابط من السيرفر
         const titleRegex = /"title":"([^"]+)"/g;
         const excerptRegex = /"excerpt":"([^"]+)"/g;
         const urlRegex = /"url":"([^"]+)"/g;
@@ -30,13 +31,14 @@ function runGithubScraper() {
         let urls = [];
         let match;
 
-        // تصحيح سحب المجموعة المقصوصة [1] لضمان جودة استخراج النصوص
+        // دفع النصوص المصفاة داخل المجموعات البرمجية الصحيحة لمنع التجمد
         while ((match = titleRegex.exec(rawJson)) !== null) { titles.push(match[1]); }
         while ((match = excerptRegex.exec(rawJson)) !== null) { excerpts.push(match[1]); }
         while ((match = urlRegex.exec(rawJson)) !== null) { urls.push(match[1]); }
 
         let count = 0;
         for (let i = 0; i < titles.length && count < 15; i++) {
+          // فك ترميز الحروف والرموز الموحدة لنصوص عربية صافية ومقروءة 100%
           let titleText = titles[i].replace(/\\u([\dA-F]{4})/gi, (m, p) => String.fromCharCode(parseInt(p, 16))).replace(/\\/g, '');
           let excerptText = excerpts[i] ? excerpts[i].replace(/\\u([\dA-F]{4})/gi, (m, p) => String.fromCharCode(parseInt(p, 16))).replace(/\\/g, '') : titleText;
           let slug = urls[i] ? urls[i].replace(/\\/g, '') : "";
@@ -78,8 +80,9 @@ function runGithubScraper() {
         
         rssFeed += `\n</channel>\n</rss>`;
         
+        // حفظ التعديل النهائي لبناء شريط الأخبار الحقيقي
         fs.writeFileSync('kataeb-live.xml', rssFeed, 'utf-8');
-        console.log("تم بناء الـ XML بنجاح مالي كامل!");
+        console.log("تمت معالجة البيانات وضخ شريط الأخبار بنجاح 100%!");
 
       } catch (err) {
         console.error("خطأ معالجة: " + err.message);
