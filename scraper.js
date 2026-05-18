@@ -2,7 +2,7 @@ const fs = require('fs');
 const https = require('https');
 
 function runGithubScraper() {
-  // جلب المحتوى المباشر المحدث بالكامل من السيرفر مباشرة
+  // جلب المحتوى الكامل مباشرة من السيرفر
   const apiUrl = "https://kataeb.org"; 
   
   const options = {
@@ -21,7 +21,7 @@ function runGithubScraper() {
         const timestamp = new Date().toUTCString();
         let rssItems = '';
 
-        // تعبيرات نمطية دقيقة لكشط النصوص والعناوين والروابط من السيرفر
+        // تعبيرات نمطية دقيقة لكشط النصوص والعناوين والروابط
         const titleRegex = /"title":"([^"]+)"/g;
         const excerptRegex = /"excerpt":"([^"]+)"/g;
         const urlRegex = /"url":"([^"]+)"/g;
@@ -31,7 +31,7 @@ function runGithubScraper() {
         let urls = [];
         let match;
 
-        // دفع النصوص المصفاة داخل المجموعات البرمجية الصحيحة لمنع التجمد
+        // الحل الجذري: سحب المجموعات النصية [1] مباشرة لمنع تجمد حلقة المعالجة
         while ((match = titleRegex.exec(rawJson)) !== null) { titles.push(match[1]); }
         while ((match = excerptRegex.exec(rawJson)) !== null) { excerpts.push(match[1]); }
         while ((match = urlRegex.exec(rawJson)) !== null) { urls.push(match[1]); }
@@ -80,9 +80,9 @@ function runGithubScraper() {
         
         rssFeed += `\n</channel>\n</rss>`;
         
-        // حفظ التعديل النهائي لبناء شريط الأخبار الحقيقي
+        // حفظ التعديل الصافي والنهائي لشريط الأخبار
         fs.writeFileSync('kataeb-live.xml', rssFeed, 'utf-8');
-        console.log("تمت معالجة البيانات وضخ شريط الأخبار بنجاح 100%!");
+        console.log("تمت المعالجة البرمجية وضخ العناوين بنجاح 100%!");
 
       } catch (err) {
         console.error("خطأ معالجة: " + err.message);
