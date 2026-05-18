@@ -2,11 +2,11 @@ name: Update Kataeb RSS Feed
 
 on:
   schedule:
-    - cron: '*/15 * * * *' # تحديث أوتوماتيكي كل 15 دقيقة
-  workflow_dispatch: # زر التشغيل اليدوي لتجربته الآن
+    - cron: '*/15 * * * *'
+  workflow_dispatch:
 
 permissions:
-  contents: write # إعطاء السيرفر الإذن لحفظ ملف الـ XML داخل حسابك
+  contents: write
 
 jobs:
   build:
@@ -14,16 +14,16 @@ jobs:
 
     steps:
     - name: Checkout repository code
-      uses: actions/checkout@v3
+      uses: actions/checkout@v4 # تحديث لنسخة v4 المتوافقة مع Node الجديد
 
     - name: Set up Python
-      uses: actions/setup-python@v4
+      uses: actions/setup-python@v5 # تحديث لنسخة v5 المتوافقة مع Node الجديد
       with:
-        python-version: '3.10'
+        python-version: '3.11'
 
     - name: Install Dependencies
       run: |
-        pip install requests beautifulsoup4 feedgen cloudscraper
+        pip install requests beautifulsoup4 feedgen
 
     - name: Run Scraper Script
       run: python scraper.py
