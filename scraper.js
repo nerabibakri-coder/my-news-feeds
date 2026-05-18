@@ -2,7 +2,6 @@ const fs = require('fs');
 const https = require('https');
 
 function runGithubScraper() {
-  // جلب المحتوى المباشر الكامل من السيرفر بدون فلاتر معقدة تحذف التكرار
   const apiUrl = "https://kataeb.org"; 
   
   const options = {
@@ -31,27 +30,26 @@ function runGithubScraper() {
         let urls = [];
         let match;
 
+        // تصحيح سحب المجموعة المقصوصة [1] لضمان جودة استخراج النصوص
         while ((match = titleRegex.exec(rawJson)) !== null) { titles.push(match[1]); }
         while ((match = excerptRegex.exec(rawJson)) !== null) { excerpts.push(match[1]); }
         while ((match = urlRegex.exec(rawJson)) !== null) { urls.push(match[1]); }
 
         let count = 0;
         for (let i = 0; i < titles.length && count < 15; i++) {
-          // تحويل الرموز الموحدة لضمان خروج النصوص العربية صافية وواضحة لقارئ الأخبار
-          let cleanTitle = titles[i].replace(/\\u([\dA-F]{4})/gi, (m, p) => String.fromCharCode(parseInt(p, 16))).replace(/\\/g, '');
-          let cleanExcerpt = excerpts[i] ? excerpts[i].replace(/\\u([\dA-F]{4})/gi, (m, p) => String.fromCharCode(parseInt(p, 16))).replace(/\\/g, '') : cleanTitle;
+          let titleText = titles[i].replace(/\\u([\dA-F]{4})/gi, (m, p) => String.fromCharCode(parseInt(p, 16))).replace(/\\/g, '');
+          let excerptText = excerpts[i] ? excerpts[i].replace(/\\u([\dA-F]{4})/gi, (m, p) => String.fromCharCode(parseInt(p, 16))).replace(/\\/g, '') : titleText;
           let slug = urls[i] ? urls[i].replace(/\\/g, '') : "";
 
-          if (cleanTitle.length > 15 && !cleanTitle.includes("logo") && !cleanTitle.includes("من نحن")) {
+          if (titleText.length > 15 && !titleText.includes("logo") && !titleText.includes("من نحن")) {
             count++;
-            // صياغة الرابط الصحيح لفتح الخبر اللحظي بدقة
             let newsLink = slug ? `https://kataeb.org{slug}` : "https://kataeb.org";
-            let guid = Buffer.from(cleanTitle.substring(0, 20)).toString('base64').replace(/[^a-zA-Z0-9]/g, '');
+            let guid = Buffer.from(titleText.substring(0, 15)).toString('base64').replace(/[^a-zA-Z0-9]/g, '');
 
             rssItems += `
     <item>
-      <title><![CDATA[🚨 عاجل: ${cleanTitle}]]></title>
-      <description><![CDATA[${cleanExcerpt}]]></description>
+      <title><![CDATA[🚨 عاجل: ${titleText}]]></title>
+      <description><![CDATA[${excerptText}]]></description>
       <link>${newsLink}</link>
       <guid isPermaLink="false">news-${guid}-${i}</guid>
       <pubDate>${timestamp}</pubDate>
@@ -80,9 +78,8 @@ function runGithubScraper() {
         
         rssFeed += `\n</channel>\n</rss>`;
         
-        // حفظ ملف الـ RSS النهائي لـ Inoreader في المستودع
         fs.writeFileSync('kataeb-live.xml', rssFeed, 'utf-8');
-        console.log("تم تحديث وبناء ملف الـ RSS بنجاح مالي كامل على غيت هاب!");
+        console.log("تم بناء الـ XML بنجاح مالي كامل!");
 
       } catch (err) {
         console.error("خطأ معالجة: " + err.message);
