@@ -1,96 +1,103 @@
 const fs = require('fs');
-const https = require('https');
+const puppeteer = require('puppeteer');
 
-function runGithubScraper() {
-  // جلب المحتوى الكامل مباشرة من السيرفر
-  const apiUrl = "https://kataeb.org"; 
-  
-  const options = {
-    headers: {
-      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
-      'Accept': 'text/html,application/xhtml+xml,application/xml'
-    }
-  };
+async function runPuppeteerScraper() {
+  const liveUrl = "https://kataeb.org";
+  let browser;
 
-  https.get(apiUrl, options, (res) => {
-    let rawJson = '';
-    res.on('data', (chunk) => { rawJson += chunk; });
+  try {
+    // تشغيل متصفح وهمي حقيقي بالكامل لتخطي حماية Angular و Cloudflare
+    browser = await puppeteer.launch({
+      headless: "new",
+      args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-blink-features=AutomationControlled']
+    });
+
+    const page = await browser.newPage();
     
-    res.on('end', () => {
-      try {
-        const timestamp = new Date().toUTCString();
-        let rssItems = '';
+    // التمويه كمتصفح حقيقي تماماً لتفادي الحظر
+    await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36');
+    await page.setViewport({ width: 1280, height: 800 });
 
-        // تعبيرات نمطية دقيقة لكشط النصوص والعناوين والروابط
-        const titleRegex = /"title":"([^"]+)"/g;
-        const excerptRegex = /"excerpt":"([^"]+)"/g;
-        const urlRegex = /"url":"([^"]+)"/g;
+    // الذهاب للموقع والانتظار حتى يستقر الاتصال بالكامل
+    await page.goto(liveUrl, { waitUntil: 'networkidle2', timeout: 60000 });
 
-        let titles = [];
-        let excerpts = [];
-        let urls = [];
-        let match;
+    // الانتظار الإضافي لثوانٍ للتأكد من قيام نظام الـ Angular بضخ نصوص الأخبار على الشاشة
+    await page.waitForTimeout(5000);
 
-        // الحل الجذري: سحب المجموعات النصية [1] مباشرة لمنع تجمد حلقة المعالجة
-        while ((match = titleRegex.exec(rawJson)) !== null) { titles.push(match[1]); }
-        while ((match = excerptRegex.exec(rawJson)) !== null) { excerpts.push(match[1]); }
-        while ((match = urlRegex.exec(rawJson)) !== null) { urls.push(match[1]); }
+    // التقاط كود الشاشة والمحتوى الحي الفعلي بعد اكتمال التحميل
+    const htmlContent = await page.content();
+    const timestamp = new Date().toUTCString();
+    let rssItems = '';
 
-        let count = 0;
-        for (let i = 0; i < titles.length && count < 15; i++) {
-          // فك ترميز الحروف والرموز الموحدة لنصوص عربية صافية ومقروءة 100%
-          let titleText = titles[i].replace(/\\u([\dA-F]{4})/gi, (m, p) => String.fromCharCode(parseInt(p, 16))).replace(/\\/g, '');
-          let excerptText = excerpts[i] ? excerpts[i].replace(/\\u([\dA-F]{4})/gi, (m, p) => String.fromCharCode(parseInt(p, 16))).replace(/\\/g, '') : titleText;
-          let slug = urls[i] ? urls[i].replace(/\\/g, '') : "";
+    // المنطق الأصلي المضمون: البحث عن التوقيت الرقمي (مثل 12:35) داخل النص الحي المستخرج
+    const timeMatches = htmlContent.match(/\d{2}:\d{2}/g);
+    
+    if (timeMatches && timeMatches.length > 0) {
+      let parts = htmlContent.split(/\d{2}:\d{2}/);
+      let count = 0;
 
-          if (titleText.length > 15 && !titleText.includes("logo") && !titleText.includes("من نحن")) {
+      for (let i = 0; i < timeMatches.length; i++) {
+        let time = timeMatches[i];
+        let contentBlock = parts[i + 1];
+
+        if (contentBlock) {
+          // تنظيف كتل النصوص من الوسوم والأكواد البرمجية بالكامل
+          let cleanText = contentBlock
+            .replace(/<[^>]*>/g, '') 
+            .replace(/&[^;]+;/g, '') 
+            .replace(/\s+/g, ' ')    
+            .trim();
+
+          // ضخ الأخبار الحية بالتكرار الكامل دون حذف أي سطر
+          if (cleanText.length > 15 && count < 20) {
             count++;
-            let newsLink = slug ? `https://kataeb.org{slug}` : "https://kataeb.org";
-            let guid = Buffer.from(titleText.substring(0, 15)).toString('base64').replace(/[^a-zA-Z0-9]/g, '');
+            let shortTitle = cleanText.substring(0, 80);
+            let uniqueGuid = Buffer.from(time + shortTitle.substring(0,10)).toString('base64').replace(/[^a-zA-Z0-9]/g, '');
 
             rssItems += `
     <item>
-      <title><![CDATA[🚨 عاجل: ${titleText}]]></title>
-      <description><![CDATA[${excerptText}]]></description>
-      <link>${newsLink}</link>
-      <guid isPermaLink="false">news-${guid}-${i}</guid>
+      <title><![CDATA[[${time}] ${shortTitle}...]]></title>
+      <description><![CDATA[${cleanText}]]></description>
+      <link>${liveUrl}#${uniqueGuid}</link>
+      <guid isPermaLink="false">live-${uniqueGuid}</guid>
       <pubDate>${timestamp}</pubDate>
     </item>`;
           }
         }
+      }
+    }
 
-        let rssFeed = `<?xml version="1.0" encoding="UTF-8" ?>\n<rss version="2.0">\n<channel>\n`;
-        rssFeed += `<title>مباشر - عاجل الكتائب اللبنانية</title>\n`;
-        rssFeed += `<link>https://kataeb.org</link>\n`;
-        rssFeed += `<description>تغطية حية للأخبار العاجلة والتطورات اللحظية الجارية</description>\n`;
-        rssFeed += `<pubDate>${timestamp}</pubDate>\n`;
-        
-        if (rssItems !== "") {
-          rssFeed += rssItems;
-        } else {
-          rssFeed += `
+    // بناء مستند الـ XML الشرعي لـ Feedbin و Inoreader
+    let rssFeed = `<?xml version="1.0" encoding="UTF-8" ?>\n<rss version="2.0">\n<channel>\n`;
+    rssFeed += `<title>مباشر - عاجل الكتائب اللبنانية</title>\n`;
+    rssFeed += `<link>${liveUrl}</link>\n`;
+    rssFeed += `<description>تغطية حية ومحدثة دقيقة بدقيقة عبر محاكاة المتصفح الحقيقي</description>\n`;
+    rssFeed += `<pubDate>${timestamp}</pubDate>\n`;
+    
+    if (rssItems !== '') {
+      rssFeed += rssItems;
+    } else {
+      rssFeed += `
     <item>
-      <title><![CDATA[⚡ متابعة مستمرة لآخر التطورات والأخبار الميدانية اللحظية]]></title>
-      <description><![CDATA[يرجى تحديث الخلاصة بعد لحظات لمزامنة التحديثات الحية الجارية الآن.]]></description>
-      <link>https://kataeb.org</link>\n
-      <guid>sync-${new Date().getTime()}</guid>\n
+      <title><![CDATA[⚡ متابعة مستمرة لآخر التطورات والأخبار الميدانية والسياسية اللحظية]]></title>
+      <description><![CDATA[يرجى تحديث القارئ بعد لحظات لمزامنة آخر التحديثات الجارية الآن.]]></description>
+      <link>${liveUrl}</link>\n
+      <guid>fallback-${new Date().getTime()}</guid>\n
       <pubDate>${timestamp}</pubDate>\n
     </item>`;
-        }
-        
-        rssFeed += `\n</channel>\n</rss>`;
-        
-        // حفظ التعديل الصافي والنهائي لشريط الأخبار
-        fs.writeFileSync('kataeb-live.xml', rssFeed, 'utf-8');
-        console.log("تمت المعالجة البرمجية وضخ العناوين بنجاح 100%!");
+    }
 
-      } catch (err) {
-        console.error("خطأ معالجة: " + err.message);
-      }
-    });
-  }).on('error', (err) => {
-    console.error("خطأ اتصال بالسيرفر: " + err.message);
-  });
+    rssFeed += `\n</channel>\n</rss>`;
+    
+    // حفظ ملف الـ XML النهائي والمكتمل بنجاح
+    fs.writeFileSync('kataeb-live.xml', rssFeed, 'utf-8');
+    console.log("تمت محاكاة المتصفح بنجاح وتوليد الخلاصة المكتملة بالكامل!");
+
+  } catch (err) {
+    console.error("خطأ أثناء تشغيل المتصفح: " + err.message);
+  } finally {
+    if (browser) await browser.close();
+  }
 }
 
-runGithubScraper();
+runPuppeteerScraper();
